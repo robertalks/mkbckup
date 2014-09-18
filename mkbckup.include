@@ -1,0 +1,4 @@
+# example of mkbckup include file
+/root
+/etc
+/var

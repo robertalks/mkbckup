@@ -1,0 +1,198 @@
+#!/bin/bash -e
+
+name="$(basename $0)"
+version="1.0"
+location="$(dirname ${name} 2>/dev/null)"
+config_file="${location}/mkbckup.conf"
+include_file="${location}/mkbckup.include"
+exclude_file="${location}/mkbckup.exclude"
+rsync_logfile="/var/log/${name}-rsync.log"
+host="$(hostname -f)"
+
+_echo()
+{
+	local txt="$@"
+	echo -e "${name}: ${txt}"
+}
+
+_info()
+{
+	local txt="$@"
+	_echo "info: ${txt}"
+}
+
+_error()
+{
+	local txt="$@"
+	_echo "error: ${txt}" >&2
+}
+
+usage()
+{
+	cat << EOF
+$name: backup tool script
+
+Usage: $name [OPTIONS] ...
+
+         -h               Show this help.
+         -b               Run backup.
+         -v               Show version number.
+         -c               Use a custom configuration file.
+                          (default: $config_file)
+         -i               Use a custom include file.
+                          (default: $include_file or taken from $config_file)
+         -x               Use a custom exclude file.
+                          (default: $exclude_file or taken from $config_file)
+
+Example:
+       $name -b -c /etc/mkbckup/mkbckup.conf -i /etc/mkbckup/mkbckup.include -x /etc/mkbckup/mkbckup.exclude
+   or
+       $name -b -i /etc/mkbckup/mkbckup.include
+
+EOF
+}
+
+load_config()
+{
+	if [ -z ${location} ]; then
+		_error "remote location cant not be empty."
+		exit 1
+	fi
+
+	if [ -n "${config_file}" -a -s "${config_file}" ]; then
+		source "${config_file}"
+	else
+		_error "unable to load configuration file."
+		exit 1
+	fi	
+}
+
+print_config()
+{
+	_echo "version ${version}"
+	_echo "configuration file:   ${config_file}"
+	_echo "local server:         ${host}"
+	_echo "remote server:        ${bckup_host}"
+	_echo "remote directory:     ${bckup_location}"
+	_echo "remote user:          ${bckup_user}"
+	_echo "include file:         ${include_file}"
+	_echo "exclude file:         ${exclude_file}"
+	_echo "rsync logfile:        ${rsync_logfile}"
+}
+
+rsync_options()
+{
+	rsync_opts="--verbose --progress --compress --archive --update --recursive --delete"
+
+	if [ -n "${exclude_file}" -a -s "${exclude_file}" ]; then
+		rsync_opts="${rsync_opts} --exclude-from=${exclude_file}"
+	fi
+
+	if [ -n "${bckup_location}" ]; then
+		rsync_opts="${rsync_opts} --rsh=ssh ${bckup_location}"
+	else
+		_error "remote location has not been set."
+		exit 1
+	fi	
+
+	export rsync_opts
+}
+
+rsync_backup()
+{
+	if [ -n "${include_file}" -a -s "${include_file}" ]; then
+		if ! $(touch ${rsync_logfile} 2>/dev/null); then
+			_error "unable to create/write ${rsync_logfile}"
+			exit 1
+		fi
+		while read bckup_dir; do
+			if $(echo "$bckup_dir" | grep -q ^# 2>/dev/null); then
+				continue;
+			fi
+			_info "backing up directory: ${bckup_dir}"
+			/usr/bin/rsync "${rsync_opts}" "${bckup_user}@${bckup_host}:${bckup_location}/${host}" > ${rsync_logfile} 2>&1
+			err=$?
+			if [ ${err} -ne 0 ]; then
+				_error "backup of ${bckup_dir} to ${bckup_host}:${bckup_location}/${host} failed."
+				exit ${err}
+			fi
+		done < "${include_file}"
+	else
+		_error "nothing to backup, the include_file empty or it doesnt exists."
+		exit 1
+	fi
+}
+
+run_ssh_check()
+{
+	local ssh_check=$(/usr/bin/ssh-keyscan ${bckup_host} >/dev/null 2>&1; echo $?)
+
+	if [ $ssh_check -ne 0 ]; then
+		_error "$bckup_host not available."
+		exit ${ssh_check}
+	fi
+}
+
+run_backup()
+{
+	# check if ssh on remote server possible
+	run_ssh_check
+	# set options use by rsync
+	rsync_options
+	# run rsync backup
+	rsync_backup
+}
+
+do_backup=0
+
+if [ $# -eq 0 ]; then
+	usage
+	_error "missing option(s) or argument(s)."
+	exit 1
+fi
+
+while getopts "hbvc:i:x:" opt; do
+	case "${opt}" in
+		h)
+		  usage
+		  exit 0
+		;;
+		b)
+		  do_backup=1
+		;;
+		v)
+		  echo "${name} ${version}"
+		  exit 0
+		;;
+		c)
+		  config_file="${OPTARG}"
+		  shift
+		;;
+		i)
+		  include_file="${OPTARG}"
+		;;
+		x)
+		  exclude_file="${OPTARG}"
+		;;
+		\?)
+		  exit 1
+		;;
+	esac
+done
+
+start_counter="$(date +%s)"
+
+load_config
+print_config
+
+if [ ${do_backup} -eq 1 ]; then
+	start_counter="$(date +%s)"
+	run_backup
+	end_counter="$(date +%s)"
+	# elapsed time
+	diff_timer="$((${end_counter} - ${start_counter}))"
+	timer="$(date -u -d @${diff_timer} +'%-M minutes %-S seconds')"
+	_info "elapsed time: ${timer}"
+fi
+
+exit $?

@@ -1,0 +1,6 @@
+# example of mkbckup exclude file
+/tmp
+/var/tmp
+/run
+/var/run
+/var/lock
