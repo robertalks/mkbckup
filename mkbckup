@@ -103,14 +103,29 @@ sanity_check()
 rsync_options()
 {
 	rsync_opts="--verbose --progress --compress --archive \
-		--update --recursive --delete --rsh=ssh \
-		${bckup_user}@${bckup_host}:${bckup_location}/${host}"
+		--update --recursive --delete --rsh=ssh"
 
 	if [ -n "${exclude_file}" -a -s "${exclude_file}" ]; then
 		rsync_opts="${rsync_opts} --exclude-from=${exclude_file}"
 	fi
 
 	export rsync_opts
+}
+
+rsync_command()
+{
+	local backup_dir="$1"
+
+	if [ -x /usr/bin/rsync ]; then
+		/usr/bin/rsync ${rsync_opts} ${backup_dir} ${bckup_user}@${bckup_host}:${bckup_location}/${host} > ${rsync_logfile} 2>&1
+		if [ $? -ne 0 ]; then
+			_error "failed to backup ${backup_dir}"
+			exit 1
+		fi
+	else
+		_error "/usr/bin/rsync not found"
+		exit 1
+	fi
 }
 
 rsync_backup()
@@ -125,11 +140,7 @@ rsync_backup()
 				continue;
 			fi
 			_info "backing up directory: ${bckup_dir}"
-			/usr/bin/rsync ${rsync_opts} ${bckup_dir} > ${rsync_logfile} 2>&1; err=$?
-			if [ ${err} -ne 0 ]; then
-				_error "backup of ${bckup_dir} to ${bckup_host}:${bckup_location}/${host} failed."
-				exit ${err}
-			fi
+			rsync_command "${bckup_dir}"
 		done < "${include_file}"
 	else
 		_error "nothing to backup, the include_file empty or it doesnt exists."
