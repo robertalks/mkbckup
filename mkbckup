@@ -80,20 +80,35 @@ print_config()
 	_echo "rsync logfile:        ${rsync_logfile}"
 }
 
+sanity_check()
+{
+	if [ -z ${config_file} ]; then
+		_error "configuration file not set"
+		exit 1
+	else [ -z ${host} ]; then
+		_error "local hostname not set"
+		exit 1
+	else [ -z ${bckup_host} ]; then
+		_error "remote host not set"
+		exit 1
+	else [ -z ${bckup_location} ]; then
+		_error "remote directory not set"
+		exit 1
+	else [ -z ${bckup_user} ]; then
+		_error "remote user not uset"
+		exit 1
+	fi
+}
+
 rsync_options()
 {
-	rsync_opts="--verbose --progress --compress --archive --update --recursive --delete"
+	rsync_opts="--verbose --progress --compress --archive \
+		--update --recursive --delete --rsh=ssh \
+		${bckup_user}@${bckup_host}:${bckup_location}/${host}"
 
 	if [ -n "${exclude_file}" -a -s "${exclude_file}" ]; then
 		rsync_opts="${rsync_opts} --exclude-from=${exclude_file}"
 	fi
-
-	if [ -n "${bckup_location}" ]; then
-		rsync_opts="${rsync_opts} --rsh=ssh ${bckup_location}"
-	else
-		_error "remote location has not been set."
-		exit 1
-	fi	
 
 	export rsync_opts
 }
@@ -110,8 +125,7 @@ rsync_backup()
 				continue;
 			fi
 			_info "backing up directory: ${bckup_dir}"
-			/usr/bin/rsync "${rsync_opts}" "${bckup_user}@${bckup_host}:${bckup_location}/${host}" > ${rsync_logfile} 2>&1
-			err=$?
+			/usr/bin/rsync ${rsync_opts} ${bckup_dir} > ${rsync_logfile} 2>&1; err=$?
 			if [ ${err} -ne 0 ]; then
 				_error "backup of ${bckup_dir} to ${bckup_host}:${bckup_location}/${host} failed."
 				exit ${err}
@@ -180,9 +194,8 @@ while getopts "hbvc:i:x:" opt; do
 	esac
 done
 
-start_counter="$(date +%s)"
-
 load_config
+sanity_check
 print_config
 
 if [ ${do_backup} -eq 1 ]; then
