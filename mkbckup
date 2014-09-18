@@ -15,12 +15,6 @@ _echo()
 	echo -e "${name}: ${txt}"
 }
 
-_info()
-{
-	local txt="$@"
-	_echo "info: ${txt}"
-}
-
 _error()
 {
 	local txt="$@"
@@ -139,7 +133,7 @@ rsync_backup()
 			if $(echo "$bckup_dir" | grep -q ^# 2>/dev/null); then
 				continue;
 			fi
-			_info "backing up directory: ${bckup_dir}"
+			_echo "backing up directory: ${bckup_dir}"
 			rsync_command "${bckup_dir}"
 		done < "${include_file}"
 	else
@@ -216,7 +210,7 @@ if [ ${do_backup} -eq 1 ]; then
 	# elapsed time
 	diff_timer="$((${end_counter} - ${start_counter}))"
 	timer="$(date -u -d @${diff_timer} +'%-M minutes %-S seconds')"
-	_info "elapsed time: ${timer}"
+	_echo "elapsed time: ${timer}"
 fi
 
 exit $?
