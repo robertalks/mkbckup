@@ -11,13 +11,13 @@ host="$(hostname -f)"
 
 _echo()
 {
-	local txt="$@"
-	echo -e "${name}: ${txt}"
+	local txt="$1"
+	echo "${name}: ${txt}"
 }
 
 _error()
 {
-	local txt="$@"
+	local txt="$1"
 	_echo "error: ${txt}" >&2
 }
 
