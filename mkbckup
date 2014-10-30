@@ -2,7 +2,7 @@
 
 name="$(basename $0)"
 version="1.0"
-location="$(dirname ${name} 2>/dev/null)"
+location="$(dirname $0 2>/dev/null)"
 config_file="${location}/mkbckup.conf"
 include_file="${location}/mkbckup.include"
 exclude_file="${location}/mkbckup.exclude"
