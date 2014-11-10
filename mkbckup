@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 name="$(basename $0)"
 version="1.0"
@@ -9,7 +9,7 @@ exclude_file="${location}/mkbckup.exclude"
 rsync_logfile="/var/log/${name}-rsync.log"
 host="$(hostname -f)"
 
-_echo()
+_info()
 {
 	local txt="$1"
 	echo "${name}: ${txt}"
@@ -18,7 +18,7 @@ _echo()
 _error()
 {
 	local txt="$1"
-	_echo "error: ${txt}" >&2
+	echo "${name}: error: ${txt}" >&2
 }
 
 usage()
@@ -58,20 +58,20 @@ load_config()
 	else
 		_error "unable to load configuration file."
 		exit 1
-	fi	
+	fi
 }
 
 print_config()
 {
-	_echo "version ${version}"
-	_echo "configuration file:   ${config_file}"
-	_echo "local server:         ${host}"
-	_echo "remote server:        ${bckup_host}"
-	_echo "remote directory:     ${bckup_location}"
-	_echo "remote user:          ${bckup_user}"
-	_echo "include file:         ${include_file}"
-	_echo "exclude file:         ${exclude_file}"
-	_echo "rsync logfile:        ${rsync_logfile}"
+	_info "version ${version}"
+	_info "configuration file:   ${config_file}"
+	_info "local server:         ${host}"
+	_info "remote server:        ${bckup_host}"
+	_info "remote directory:     ${bckup_location}"
+	_info "remote user:          ${bckup_user}"
+	_info "include file:         ${include_file}"
+	_info "exclude file:         ${exclude_file}"
+	_info "rsync logfile:        ${rsync_logfile}"
 }
 
 sanity_check()
@@ -89,7 +89,7 @@ sanity_check()
 		_error "remote directory not set"
 		exit 1
 	elif [ -z ${bckup_user} ]; then
-		_error "remote user not uset"
+		_error "remote user not set"
 		exit 1
 	fi
 }
@@ -102,8 +102,6 @@ rsync_options()
 	if [ -n "${exclude_file}" -a -s "${exclude_file}" ]; then
 		rsync_opts="${rsync_opts} --exclude-from=${exclude_file}"
 	fi
-
-	export rsync_opts
 }
 
 rsync_command()
@@ -133,7 +131,7 @@ rsync_backup()
 			if $(echo "$bckup_dir" | grep -q ^# 2>/dev/null); then
 				continue;
 			fi
-			_echo "backing up directory: ${bckup_dir}"
+			_info "backing up directory: ${bckup_dir}"
 			rsync_command "${bckup_dir}"
 		done < "${include_file}"
 	else
@@ -166,7 +164,7 @@ do_backup=0
 
 if [ $# -eq 0 ]; then
 	usage
-	_error "missing option(s) or argument(s)."
+	_error "missing option(s) or argument(s)"
 	exit 1
 fi
 
@@ -199,6 +197,11 @@ while getopts "hbvc:i:x:" opt; do
 	esac
 done
 
+if [ "$(id -u)" -ne 0 ]; then
+	_error "requires root privileges"
+	exit 1
+fi
+
 load_config
 sanity_check
 print_config
@@ -210,7 +213,7 @@ if [ ${do_backup} -eq 1 ]; then
 	# elapsed time
 	diff_timer="$((${end_counter} - ${start_counter}))"
 	timer="$(date -u -d @${diff_timer} +'%-M minutes %-S seconds')"
-	_echo "elapsed time: ${timer}"
+	_info "elapsed time: ${timer}"
 fi
 
 exit $?
