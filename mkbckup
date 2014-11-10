@@ -54,7 +54,7 @@ load_config()
 	fi
 
 	if [ -n "${config_file}" -a -s "${config_file}" ]; then
-		source "${config_file}"
+		. "${config_file}"
 	else
 		_error "unable to load configuration file."
 		exit 1
