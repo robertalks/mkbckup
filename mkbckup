@@ -53,12 +53,12 @@ load_config()
 		exit 1
 	fi
 
-	if [ -r "${config_file}" -a ! -s "${config_file}" ]; then
-		. "${config_file}"
-	else
+	if [ ! -r "${config_file}" -o ! -s "${config_file}" ]; then
 		_error "unable to load configuration file."
 		exit 1
 	fi
+
+	. "${config_file}"
 }
 
 print_config()
