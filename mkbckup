@@ -53,7 +53,7 @@ load_config()
 		exit 1
 	fi
 
-	if [ -n "${config_file}" -a -s "${config_file}" ]; then
+	if [ -r "${config_file}" -a ! -s "${config_file}" ]; then
 		. "${config_file}"
 	else
 		_error "unable to load configuration file."
@@ -91,6 +91,9 @@ sanity_check()
 	elif [ -z ${bckup_user} ]; then
 		_error "remote user not set"
 		exit 1
+	elif [ -z ${include_file} ]; then
+		_error "include file not set"
+		exit 1
 	fi
 }
 
@@ -108,43 +111,42 @@ rsync_command()
 {
 	local backup_dir="$1"
 
-	if [ -x /usr/bin/rsync ]; then
-		/usr/bin/rsync ${rsync_opts} ${backup_dir} ${bckup_user}@${bckup_host}:${bckup_location}/${host} > ${rsync_logfile} 2>&1
-		if [ $? -ne 0 ]; then
-			_error "failed to backup ${backup_dir}"
-			exit 1
-		fi
-	else
+	if [ ! -x /usr/bin/rsync ]; then
 		_error "/usr/bin/rsync not found"
+		exit 1
+	fi
+
+	/usr/bin/rsync ${rsync_opts} ${backup_dir} ${bckup_user}@${bckup_host}:${bckup_location}/${host} > ${rsync_logfile} 2>&1
+	if [ $? -ne 0 ]; then
+		_error "failed to backup ${backup_dir}"
 		exit 1
 	fi
 }
 
 rsync_backup()
 {
-	if [ -n "${include_file}" -a -s "${include_file}" ]; then
-		if ! $(touch ${rsync_logfile} 2>/dev/null); then
-			_error "unable to create/write ${rsync_logfile}"
-			exit 1
-		fi
-		while read bckup_dir; do
-			if $(echo "$bckup_dir" | grep -q ^# 2>/dev/null); then
-				continue;
-			fi
-			_info "backing up directory: ${bckup_dir}"
-			rsync_command "${bckup_dir}"
-		done < "${include_file}"
-	else
+	if [ ! -r "${include_file}" -o ! -s "${include_file}" ]; then
 		_error "nothing to backup, the include_file empty or it doesnt exists."
 		exit 1
 	fi
+
+	if ! touch ${rsync_logfile} >/dev/null 2>&1; then
+		_error "unable to create/write ${rsync_logfile}"
+		exit 1
+	fi
+
+	while read bckup_dir; do
+		if $(echo "$bckup_dir" | grep -q ^# 2>/dev/null); then
+			continue;
+		fi
+		_info "backing up directory: ${bckup_dir}"
+		rsync_command "${bckup_dir}"
+	done < "${include_file}"
 }
 
 run_ssh_check()
 {
-	local ssh_check=$(/usr/bin/ssh-keyscan ${bckup_host} >/dev/null 2>&1; echo $?)
-
-	if [ $ssh_check -ne 0 ]; then
+	if ! /usr/bin/ssh-keyscan ${bckup_host} >/dev/null 2>&1; then
 		_error "$bckup_host not available."
 		exit ${ssh_check}
 	fi
@@ -197,7 +199,7 @@ while getopts "hbvc:i:x:" opt; do
 	esac
 done
 
-if [ "$(id -u)" -ne 0 ]; then
+if [ "$(id -u 2>/dev/null || echo 1)" -ne 0 ]; then
 	_error "requires root privileges"
 	exit 1
 fi
