@@ -9,17 +9,9 @@ exclude_file="${location}/mkbckup.exclude"
 rsync_logfile="/var/log/${name}-rsync.log"
 host="$(hostname -f)"
 
-_info()
-{
-	local txt="$1"
-	echo "${name}: ${txt}"
-}
+_info() { echo "${name}: $@"; }
 
-_error()
-{
-	local txt="$1"
-	echo "${name}: error: ${txt}" >&2
-}
+_error() { echo "${name}: error: $@" >&2; }
 
 usage()
 {
